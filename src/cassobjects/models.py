@@ -36,8 +36,8 @@ POOLS = {}
 class Column(object):
     """Wraps "metadata" of a field into this class.
 
-    This class allow to define metadata for a model field, like if it's a
-    primary key, or it's an index.
+    This class allow to define metadata for a model field, like if it's an
+    index.
     Column type must be a valid Cassandra Type, can also be a CompositeType,
     the class or directly an instanciated object.
     For a CompositeType, arguments *MUST* be instanciated objects, not the
@@ -47,7 +47,6 @@ class Column(object):
     """
     def __init__(self, *args, **kwargs):
         self.index = kwargs.get('index', False)
-        self.primary_key = kwargs.get('primary_key', False)
         self.alias = None
         self.col_type = None
         args = list(args)

@@ -45,7 +45,6 @@ class Builder(object):
 
         If the `force` argument is True, it will drop the column family. This
         can be very dangerous, make sure you know what you're doing.
-        Only one primary key can be specified by model.
         If a field is listed as an index, creates a Cassandra secondary index.
         Arbitrary connects to the first server found in the class
         ConnectionPool.
@@ -63,22 +62,14 @@ class Builder(object):
                 # This will destroy all remaining data, make sure you know
                 # what you do.
                 sys.drop_column_family(pool.keyspace, cf)
-            primary = None
             cvclasses = {}
             indexes = {}
             for attr, value in dct.items():
                 if isinstance(value, Column):
                     name = value.alias or attr
-                    if value.primary_key:
-                        if primary is not None:
-                            raise BuilderException("%s: Only one key can be used "
-                                                   "as primary" % klass)
-                        primary = value
                     if value.index:
                         indexes[name] = value.col_type
                     cvclasses[name] = value.col_type
-            if primary is None:
-                raise BuilderException("%s: No primary key" % klass)
             # Create column family
             sys.create_column_family(pool.keyspace, cf, super=False,
                                      comparator_type=UTF8_TYPE,
