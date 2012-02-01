@@ -44,6 +44,8 @@ class Builder(object):
     def _create_metamodel(cls, klass, force):
         """Creates family column for a MetaModel inherited class.
 
+        If the `force` argument is True, it will drop the column family. This
+        can be very dangerous, make sure you know what you're doing.
         Only one primary key can be specified by model.
         If a field is listed as an index, creates a Cassandra secondary index.
         Arbitrary connects to the first server found in the class
@@ -56,10 +58,12 @@ class Builder(object):
         sys = SystemManager(pool.server_list[0])
         try:
             cfs_keyspace = sys.get_keyspace_column_families(pool.keyspace)
-            if cf in cfs_keyspace and not force:
-                #FIXME: remove this
-                #FIXME: remove column family before
-                return
+            if cf in cfs_keyspace:
+                if not force:
+                    return
+                # This will destroy all remaining data, make sure you know
+                # what you do.
+                sys.drop_column_family(pool.keyspace, cf)
             primary = None
             cvclasses = {}
             indexes = {}
