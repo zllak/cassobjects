@@ -48,10 +48,12 @@ class Builder(object):
         If a field is listed as an index, creates a Cassandra secondary index.
         Arbitrary connects to the first server found in the class
         ConnectionPool.
+        Rely on the CFRegistry object to get the proper list of properties in
+        the model.
 
         """
-        dct = klass.__dict__
         cf = klass.__column_family__
+        dct = klass.registry[cf]
         pool = klass.pool
         sys = SystemManager(pool.server_list[0])
         try:

@@ -186,6 +186,9 @@ class CFRegistry(object):
             item = item.__column_family__
         return item in self.cfs
 
+    def __getitem__(self, item):
+        return dict.__getitem__(self.cfs, item)
+
     def add(self, name, definition):
         dict.__setitem__(self.cfs, name, definition)
 
