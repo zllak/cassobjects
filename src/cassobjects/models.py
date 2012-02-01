@@ -79,9 +79,6 @@ class MetaModel(type):
         etc...
 
         """
-        if 'pool' in dct:
-            # We are in the 'Model' constructor method, so, we store the pool
-            cls.__pool__ = dct['pool']
         # Indexes
         indexes = dct.get('__indexes__', [])
         for attr, value in dct.items():
@@ -107,7 +104,7 @@ class MetaModel(type):
         :param value: The value to match.
 
         """
-        col_fam = ColumnFamily(self.__pool__, self.__column_family__)
+        col_fam = ColumnFamily(self.pool, self.__column_family__)
         clause = create_index_clause([create_index_expression(attribute, value)])
         idx_slices = col_fam.get_indexed_slices(clause)
         return attribute
@@ -128,23 +125,23 @@ class MetaModel(type):
 
     # Maps pycassa.ColumnFamily methods
     def get(self, *args, **kwargs):
-        col_fam = ColumnFamily(self.__pool__, self.__column_family__)
+        col_fam = ColumnFamily(self.pool, self.__column_family__)
         return col_fam.get(*args, **kwargs)
 
     def multiget(self, *args, **kwargs):
-        col_fam = ColumnFamily(self.__pool__, self.__column_family__)
+        col_fam = ColumnFamily(self.pool, self.__column_family__)
         return col_fam.multiget(*args, **kwargs)
 
     def get_count(self, *args, **kwargs):
-        col_fam = ColumnFamily(self.__pool__, self.__column_family__)
+        col_fam = ColumnFamily(self.pool, self.__column_family__)
         return col_fam.get_count(*args, **kwargs)
 
     def multiget_count(self, *args, **kwargs):
-        col_fam = ColumnFamily(self.__pool__, self.__column_family__)
+        col_fam = ColumnFamily(self.pool, self.__column_family__)
         return col_fam.multiget_count(*args, **kwargs)
 
     def get_range(self, *args, **kwargs):
-        col_fam = ColumnFamily(self.__pool__, self.__column_family__)
+        col_fam = ColumnFamily(self.pool, self.__column_family__)
         return col_fam.get_range(*args, **kwargs)
 
     def insert(self, key, columns, timestamp=None, ttl=None, write_consistency_level='ALL'):

@@ -52,7 +52,7 @@ class Builder(object):
         """
         dct = klass.__dict__
         cf = klass.__column_family__
-        pool = klass.__pool__
+        pool = klass.pool
         sys = SystemManager(pool.server_list[0])
         try:
             cfs_keyspace = sys.get_keyspace_column_families(pool.keyspace)
