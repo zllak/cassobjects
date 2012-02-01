@@ -7,7 +7,6 @@
 from pycassa.system_manager import *
 
 from cassobjects.models import MetaModel, MetaTimestampedModel, Column
-from cassobjects.types import TYPE_TABLE
 
 # Exception
 class BuilderException(Exception):
