@@ -46,6 +46,7 @@ class Builder(object):
         If the `force` argument is True, it will drop the column family. This
         can be very dangerous, make sure you know what you're doing.
         If a field is listed as an index, creates a Cassandra secondary index.
+        A foreign key is also handled as an index.
         Arbitrary connects to the first server found in the class
         ConnectionPool.
         Rely on the CFRegistry object to get the proper list of properties in
@@ -69,7 +70,7 @@ class Builder(object):
             for attr, value in dct.items():
                 if isinstance(value, Column):
                     name = value.alias or attr
-                    if value.index:
+                    if value.index or value.foreign_key:
                         indexes[name] = value.col_type
                     cvclasses[name] = value.col_type
             # Create column family
