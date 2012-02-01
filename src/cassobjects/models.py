@@ -20,6 +20,8 @@ from pycassa.types import CassandraType
 from pycassa.columnfamily import ColumnFamily
 from pycassa.index import create_index_expression, create_index_clause
 
+from cassobjects.utils import immutabledict
+
 __all__ = ['declare_model', 'MetaModel', 'MetaTimestampedModel', 'Column']
 
 class ModelException(Exception):
@@ -81,17 +83,23 @@ class MetaModel(type):
         """
         # Indexes
         indexes = dct.get('__indexes__', [])
+        columns = {}
         for attr, value in dct.items():
             if isinstance(value, Column):
                 if value.index:
                     setattr(cls, 'get_by_%s' % attr, partial(cls.get_by, attr))
                     setattr(cls, 'get_one_by_%s' % attr, partial(cls.get_one_by, attr))
+                columns[attr] = value
         if indexes:
             raise ModelException('Following indexes "%s" are not declared as '
                                  'fields' % ','.join(indexes))
         # Column family name
         if '__column_family__' not in dct:
             cls.__column_family__ = cls.__name__.lower()
+
+        # add the model in the CFRegistry object
+        cls.registry.add(cls.__column_family__, columns)
+
         return type.__init__(cls, name, bases, dct)
 
     def get_by(self, attribute, value):
@@ -164,12 +172,44 @@ class MetaTimestampedModel(type):
     def get_one_by_rowkey(self, rowkey):
         pass
 
+#################################
+# Column Family Registry object #
+#################################
+
+class CFRegistry(object):
+    """Store all created models in an immutable dict"""
+    def __init__(self):
+        self.cfs = immutabledict()
+
+    def __contains__(self, item):
+        if not isinstance(item, basestring):
+            item = item.__column_family__
+        return item in self.cfs
+
+    def add(self, name, definition):
+        dict.__setitem__(self.cfs, name, definition)
+
+    def remove(self, name):
+        dict.pop(self.cfs, name)
+
+    def clear(self):
+        dict.clear(self.cfs)
+
+    #TODO do we need this here ?
+    def create_column_families(self):
+        pass
+
 
 def declare_model(cls=object, name='Model', metaclass=MetaModel,
                   keyspace=DEFAULT_KEYSPACE, hosts=DEFAULT_HOSTS):
-    """Constructs a base class for models"""
+    """Constructs a base class for models.
+    All models inheriting from this base will share the same CFRegistry object.
+
+    """
+    local_reg = CFRegistry()
     POOLS.setdefault(keyspace, ConnectionPool(keyspace, hosts))
-    return metaclass(name, (cls,), {'pool': POOLS[keyspace]})
+    return metaclass(name, (cls,), {'pool': POOLS[keyspace],
+                                    'registry': local_reg})
 
 # Relationships between models
 
