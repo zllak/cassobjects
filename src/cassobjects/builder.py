@@ -76,8 +76,8 @@ class Builder(object):
                                                    "as primary" % klass)
                         primary = value
                     if value.index:
-                        indexes[name] = TYPE_TABLE[value.col_type]
-                    cvclasses[name] = TYPE_TABLE[value.col_type]
+                        indexes[name] = value.col_type
+                    cvclasses[name] = value.col_type
             if primary is None:
                 raise BuilderException("%s: No primary key" % klass)
             # Create column family

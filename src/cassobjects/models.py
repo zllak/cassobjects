@@ -11,10 +11,9 @@ Two classes:
 
 """
 
-from __future__ import absolute_import
+import inspect
 
 from functools import partial
-from types import StringTypes
 
 from pycassa import ConnectionPool
 from pycassa.types import CassandraType
@@ -35,20 +34,37 @@ POOLS = {}
 # Column object
 
 class Column(object):
-    """
+    """Wraps "metadata" of a field into this class.
+
+    This class allow to define metadata for a model field, like if it's a
+    primary key, or it's an index.
+    Column type must be a valid Cassandra Type, can also be a CompositeType,
+    the class or directly an instanciated object.
+    For a CompositeType, arguments *MUST* be instanciated objects, not the
+    class (ie: CompositeType(UTF8Type(), IntegerType())).
+    Column types are the pycassa types. They accepts the same parameters.
 
     """
     def __init__(self, *args, **kwargs):
         self.index = kwargs.get('index', False)
         self.primary_key = kwargs.get('primary_key', False)
-        if isinstance(args[0], StringTypes):
-            self.alias = args[0]
-            self.col_type = args[1]
-        elif issubclass(args[0], CassandraType):
-            self.alias = None
+        self.alias = None
+        self.col_type = None
+        args = list(args)
+        if args:
+            if isinstance(args[0], basestring):
+                self.alias = args.pop(0)
+        if args:
             self.col_type = args[0]
-        else:
-            raise ModelException("Unrecognized parameter: %s" % args[0])
+        if self.col_type is None:
+            raise ModelException("Column needs to have a type")
+        if (inspect.isclass(self.col_type) and not issubclass(self.col_type, CassandraType)) \
+            or (not inspect.isclass(self.col_type) and not issubclass(self.col_type.__class__, CassandraType)):
+            raise ModelException("Column type must be an instance or a class "
+                                 "inherited from a cassandra type: %s" % self.col_type)
+        # instanciate the CassandraType if not already done in model
+        if inspect.isclass(self.col_type):
+            self.col_type = self.col_type()
 
 
 # models classes
