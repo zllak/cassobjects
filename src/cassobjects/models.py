@@ -89,10 +89,13 @@ class MetaModel(type):
         columns = {}
         for attr, value in cls.__dict__.items():
             if isinstance(value, Column):
-                if value.index:
+                if hasattr(value, 'index') and value.index:
                     setattr(cls, 'get_by_%s' % attr, partial(cls.get_by, attr))
                     setattr(cls, 'get_one_by_%s' % attr, partial(cls.get_one_by, attr))
                 columns[attr] = value
+                setattr(cls, attr, ModelAttribute(cls, attr, value))
+            elif isinstance(value, ModelRelationship):
+                setattr(cls, attr, ModelAttribute(cls, attr, value))
         if indexes:
             raise ModelException('Following indexes "%s" are not declared as '
                                  'fields' % ','.join(indexes))
