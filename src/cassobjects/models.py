@@ -82,10 +82,12 @@ class MetaModel(type):
         etc...
 
         """
+        if 'registry' in cls.__dict__:
+            return type.__init__(cls, name, bases, dct)
         # Indexes
         indexes = dct.get('__indexes__', [])
         columns = {}
-        for attr, value in dct.items():
+        for attr, value in cls.__dict__.items():
             if isinstance(value, Column):
                 if value.index:
                     setattr(cls, 'get_by_%s' % attr, partial(cls.get_by, attr))
@@ -103,7 +105,7 @@ class MetaModel(type):
 
         return type.__init__(cls, name, bases, dct)
 
-    def get_by(self, attribute, value):
+    def get_by(cls, attribute, value):
         """Only works for columns indexed in Cassandra.
         This means that the property must be in the __indexes__ attribute.
 
@@ -116,7 +118,7 @@ class MetaModel(type):
         value is the columns.
 
         """
-        col_fam = ColumnFamily(self.pool, self.__column_family__)
+        col_fam = ColumnFamily(cls.pool, cls.__column_family__)
         clause = create_index_clause([create_index_expression(attribute, value)])
         idx_slices = col_fam.get_indexed_slices(clause)
         result = {}
@@ -124,7 +126,7 @@ class MetaModel(type):
             result[rowkey] = columns
         return result
 
-    def get_one_by(self, attribute, value):
+    def get_one_by(cls, attribute, value):
         """Same as :meth:`get_one`, except that it will raise if more than one
         value is returned, and will return directly an object instead of a
         list.
@@ -135,7 +137,7 @@ class MetaModel(type):
         :param value: The value to match.
 
         """
-        res = self.get_by(attribute, value)
+        res = cls.get_by(attribute, value)
         if len(res) > 1:
             raise ModelException("get_one_by_%s() returned more than one "
                                  "element" % attribute)
