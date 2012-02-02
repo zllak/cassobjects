@@ -114,16 +114,15 @@ class MetaModel(type):
 
         :param value: The value to match.
 
-        Returns a dict where the key is the Cassandra RowKey value, and the
-        value is the columns.
+        Returns a list of matched objects.
 
         """
         col_fam = ColumnFamily(cls.pool, cls.__column_family__)
         clause = create_index_clause([create_index_expression(attribute, value)])
         idx_slices = col_fam.get_indexed_slices(clause)
-        result = {}
+        result = []
         for rowkey, columns in idx_slices:
-            result[rowkey] = columns
+            result.append(cls(rowkey, **columns))
         return result
 
     def get_one_by(cls, attribute, value):
@@ -138,10 +137,10 @@ class MetaModel(type):
 
         """
         res = cls.get_by(attribute, value)
-        if len(res) > 1:
+        if len(res) > 1 or len(res) == 0:
             raise ModelException("get_one_by_%s() returned more than one "
-                                 "element" % attribute)
-        return res.values()[0]
+                                 "element or zero" % attribute)
+        return res[0]
 
     # Maps pycassa.ColumnFamily methods
     def get(self, *args, **kwargs):
