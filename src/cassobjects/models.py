@@ -214,9 +214,24 @@ class CFRegistry(object):
     def create_column_families(self):
         pass
 
+# metaclass methods
+
+def _model_constructor(self, rowkey, **kwargs):
+    """Constructor for instanciated model objects.
+    Simply set the given attributes, and the given rowkey.
+
+    """
+    kls = self.__class__
+    setattr(self, 'rowkey', rowkey)
+    for arg in kwargs:
+        if not hasattr(kls, arg):
+            raise ModelException("%s can't be resolved in %s" % (arg, kls))
+        setattr(self, arg, kwargs[arg])
+_model_constructor.__name__ = '__init__'
 
 def declare_model(cls=object, name='Model', metaclass=MetaModel,
-                  keyspace=DEFAULT_KEYSPACE, hosts=DEFAULT_HOSTS):
+                  keyspace=DEFAULT_KEYSPACE, hosts=DEFAULT_HOSTS,
+                  constructor=_model_constructor):
     """Constructs a base class for models.
     All models inheriting from this base will share the same CFRegistry object.
 
@@ -224,7 +239,8 @@ def declare_model(cls=object, name='Model', metaclass=MetaModel,
     local_reg = CFRegistry()
     POOLS.setdefault(keyspace, ConnectionPool(keyspace, hosts))
     return metaclass(name, (cls,), {'pool': POOLS[keyspace],
-                                    'registry': local_reg})
+                                    'registry': local_reg,
+                                    '__init__': constructor})
 
 # Relationships between models
 
