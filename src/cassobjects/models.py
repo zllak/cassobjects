@@ -101,7 +101,7 @@ class MetaModel(type):
             cls.__column_family__ = cls.__name__.lower()
 
         # add the model in the CFRegistry object
-        cls.registry.add(cls.__column_family__, columns)
+        cls.registry.add(cls, columns)
 
         return type.__init__(cls, name, bases, dct)
 
@@ -188,9 +188,10 @@ class MetaTimestampedModel(type):
 #################################
 
 class CFRegistry(object):
-    """Store all created models in an immutable dict"""
+    """Store all created models in an immutable dict, and also store classes"""
     def __init__(self):
         self.cfs = immutabledict()
+        self.classes = immutabledict()
 
     def __contains__(self, item):
         if not isinstance(item, basestring):
@@ -200,14 +201,21 @@ class CFRegistry(object):
     def __getitem__(self, item):
         return dict.__getitem__(self.cfs, item)
 
-    def add(self, name, definition):
+    def add(self, klass, definition):
+        name = klass.__column_family__
         dict.__setitem__(self.cfs, name, definition)
+        dict.__setitem__(self.classes, name, klass)
 
     def remove(self, name):
         dict.pop(self.cfs, name)
+        dict.pop(self.classes, name)
 
     def clear(self):
         dict.clear(self.cfs)
+        dict.clear(self.classes)
+
+    def get_class(self, name):
+        return dict.__getitem__(self.classes, name)
 
     #TODO do we need this here ?
     def create_column_families(self):
