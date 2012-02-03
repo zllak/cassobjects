@@ -9,6 +9,14 @@ Two classes:
       version of the object. The last column always represents the last state
       of the object.
 
+The internal mechanism if largely inspired by the way SQLAlchemy works.
+It defines classes (models) where properties maps columns.
+Each model can be instanciated to represent a single row (object) from
+Cassandra.
+
+By now, it only supports read, create columns families, and create new entries
+in columns families. Objects cannot be updated and saved.
+
 """
 
 import inspect
@@ -33,7 +41,9 @@ DEFAULT_KEYSPACE = 'Keyspace'
 DEFAULT_HOSTS = ['localhost:9160']
 POOLS = {}
 
-# Column object
+#################
+# Column object #
+#################
 
 class Column(object):
     """Wraps "metadata" of a field into this class.
@@ -68,13 +78,61 @@ class Column(object):
         if inspect.isclass(self.col_type):
             self.col_type = self.col_type()
 
+    def do_init(self, local_class):
+        """No initialization is needed"""
+        pass
 
-# models classes
+    def get(self, instance):
+        """No need"""
+        pass
+
+##################
+# models classes #
+##################
+
+class ModelAttribute(object):
+    """This class wraps attributes (Column, ModelRelationship) of a Model with
+    a descriptor-like object.
+    As there is only one object instanciated in the Model inherited class, this
+    class must store and retrieve values for all Model object instances.
+
+    """
+    def __init__(self, host_class, attribute, prop):
+        self.host_class = host_class
+        self.attribute = attribute
+        self.prop = prop
+        self.values = {}
+
+    def __get__(self, instance, owner):
+        """Access to the object is made.
+        If `instance` is None, it means that we are called on the class object,
+        so, simply returns self.
+        If the returned value has already been saved, just returns it.
+        Otherwise, we initialize the property, and get the value.
+
+        """
+        if instance is None:
+            return self
+        self.prop.do_init(self.host_class)
+        if not self.values.get(instance):
+            self.values[instance] = self.prop.get(instance)
+        return self.values[instance]
+
+    def __set__(self, instance, value):
+        """Set a value for a Model instance object attribute"""
+        if instance not in self.values:
+            self.values[instance] = value
+        else:
+            #TODO: updating objects is currently not supported
+            pass
 
 class MetaModel(type):
     """Represents a "standard" SQL table mapped on top of Cassandra.
 
-    TODO: Explain how models works
+    As there is no such concepts as "foreign keys" in Cassandra, the foreign
+    keys created in cassobjects are only based on rowkey values. Column
+    families can be in different keyspaces, and still have "cassobjects foreign
+    keys" working.
 
     """
     def __init__(cls, name, bases, dct):
@@ -178,6 +236,7 @@ class MetaTimestampedModel(type):
     object is stored by row. Each column will be a new verseion of the
     object. Column keys are TimeUUID. Column values are the serialized
     object.
+    This kind of model can't support Columns, and foreign keys.
 
     """
     def __init__(cls, name, bases, dct):
@@ -229,14 +288,24 @@ class CFRegistry(object):
 def _model_constructor(self, rowkey, **kwargs):
     """Constructor for instanciated model objects.
     Simply set the given attributes, and the given rowkey.
+    Handles correctly Column aliases.
 
     """
     kls = self.__class__
     setattr(self, 'rowkey', rowkey)
     for arg in kwargs:
         if not hasattr(kls, arg):
-            raise ModelException("%s can't be resolved in %s" % (arg, kls))
-        setattr(self, arg, kwargs[arg])
+            # maybe it's an alias
+            for key, value in kls.__dict__.items():
+                if isinstance(value, ModelAttribute) and \
+                    isinstance(value.prop, Column) and \
+                    value.prop.alias == arg:
+                    setattr(self, key, kwargs[arg])
+                    break
+            else:
+                raise ModelException("%s can't be resolved in %s" % (arg, kls))
+        else:
+            setattr(self, arg, kwargs[arg])
 _model_constructor.__name__ = '__init__'
 
 def declare_model(cls=object, name='Model', metaclass=MetaModel,
@@ -254,6 +323,46 @@ def declare_model(cls=object, name='Model', metaclass=MetaModel,
 
 # Relationships between models
 
+class ModelRelationship(object):
+    def __init__(self, target_kls, **kwargs):
+        self.target = target_kls
+        self.kwargs = kwargs
+        self._initialized = False
+        self.target_method = None
+
+    def do_init(self, local_class):
+        """Resolve the relationship, and creates backref if necessary.
+        Look in CFRegistry if the remote side (column family) is present,
+        then look up for a foreign key linking to this instance.
+
+        :param local_class: class on which the relationship is attached
+
+        """
+        if self._initialized:
+            return
+        # find the remote side.
+        registry = local_class.registry
+        if self.target not in registry:
+            raise ModelException('Model with column family name "%s" not found '
+                                 'not found in registry' % self.target)
+        target_model = registry.get_class(self.target)
+        # find foreign key
+        local_cf = local_class.__column_family__
+        for col, value in registry[self.target].items():
+            if value.foreign_key == local_cf:
+                name = value.alias or col
+                self.target_method = partial(getattr(target_model, 'get_by'), name)
+        if self.target_method is None:
+            raise ModelException('No foreign key found in "%s" for relationship '
+                                 '"%s"' % (self.target, local_cf))
+        self._initialized = True
+
+    def get(self, instance):
+        """
+        """
+        assert self._initialized
+        return self.target_method(instance.rowkey)
+
 #TODO
 def relationship(target_kls, **kwargs):
-    return None
+    return ModelRelationship(target_kls, **kwargs)
