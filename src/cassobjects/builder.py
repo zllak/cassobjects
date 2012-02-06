@@ -70,7 +70,7 @@ class Builder(object):
             for attr, value in dct.items():
                 if isinstance(value, Column):
                     name = value.alias or attr
-                    if value.index or value.foreign_key:
+                    if value.index or value.foreign_key or value.unique:
                         indexes[name] = value.col_type
                     cvclasses[name] = value.col_type
             # Create column family

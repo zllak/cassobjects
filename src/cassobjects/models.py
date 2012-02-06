@@ -60,6 +60,7 @@ class Column(object):
     def __init__(self, *args, **kwargs):
         self.index = kwargs.get('index', False)
         self.foreign_key = kwargs.get('foreign_key', None)
+        self.unique = kwargs.get('unique', False)
         self.alias = None
         self.col_type = None
         args = list(args)
