@@ -20,13 +20,14 @@ in columns families. Objects cannot be updated and saved.
 """
 
 import inspect
-
 from functools import partial
+from datetime import datetime
 
 from pycassa import ConnectionPool
 from pycassa.types import CassandraType
 from pycassa.columnfamily import ColumnFamily
 from pycassa.index import create_index_expression, create_index_clause
+from pycassa.util import convert_time_to_uuid
 
 from cassobjects.utils import immutabledict
 
@@ -225,9 +226,44 @@ class MetaModel(type):
         col_fam = ColumnFamily(self.pool, self.__column_family__)
         return col_fam.get_range(*args, **kwargs)
 
-    def insert(self, key, columns, timestamp=None, ttl=None, write_consistency_level='ALL'):
-        # check si la row existe deja
-        pass
+    def insert(self, columns, **kwargs):
+        """Insert a new row in the column family.
+
+        Several things are checked before inserting:
+
+        - As we are handling manually uniqueness, we must ensure that all
+          unique fields are present in the `columns` parameter.
+        - For all unique fields, we use :meth:`get_by` to ensure given value is
+          actually.. unique.
+        - We need to create a TimeUUID compatible object using pycassa helper.
+
+        TODO: maybe it will need to have some consistency level adjusted to
+        avoid possible race conditions.
+
+        """
+        col_fam = ColumnFamily(self.pool, self.__column_family__)
+        # handles unique keys
+        unique = [k for k, v in self.registry[self.__column_family__].items()
+                  if hasattr(v, 'unique') and v.unique]
+        missing = set(unique) - set(columns.keys())
+        if missing:
+            raise ModelException("%s: cannot insert without following fields: %s" %
+                                 (self.__column_family__, ','.join(missing)))
+        # ensure uniqueness
+        verif_unique = [(k, v) for k, v in columns.items() if k in unique]
+        for k, v in verif_unique:
+            exists = self.get_by(k, v)
+            if exists:
+                # we have a hit, so this value is not unique
+                break
+        else:
+            # generate a TimeUUID object for the rowkey
+            key = convert_time_to_uuid(datetime.utcnow())
+            ret = col_fam.insert(key, columns, **kwargs)
+            return self(key, **columns)
+        # some key in not unique
+        raise ModelException("%s: cannot create, a value is not unique" %
+                             self.__column_family__)
 
 
 class MetaTimestampedModel(type):
