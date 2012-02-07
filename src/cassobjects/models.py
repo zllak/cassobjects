@@ -23,7 +23,7 @@ import inspect
 from functools import partial
 from datetime import datetime
 
-from pycassa import ConnectionPool
+from pycassa import ConnectionPool, ConsistencyLevel
 from pycassa.types import CassandraType
 from pycassa.columnfamily import ColumnFamily
 from pycassa.index import create_index_expression, create_index_clause
@@ -31,7 +31,8 @@ from pycassa.util import convert_time_to_uuid
 
 from cassobjects.utils import immutabledict
 
-__all__ = ['declare_model', 'MetaModel', 'MetaTimestampedModel', 'Column']
+__all__ = ['declare_model', 'MetaModel', 'MetaTimestampedModel', 'Column',
+           'ConsistencyLevel']
 
 class ModelException(Exception):
     """An exception occured during Model parsing/construction"""
