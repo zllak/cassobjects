@@ -232,19 +232,32 @@ class MetaModel(type):
 
         Several things are checked before inserting:
 
+        - Verify that inputs exists in class, and resolve aliases.
         - As we are handling manually uniqueness, we must ensure that all
           unique fields are present in the `columns` parameter.
         - For all unique fields, we use :meth:`get_by` to ensure given value is
           actually.. unique.
         - We need to create a TimeUUID compatible object using pycassa helper.
 
+        Fields that refers to relationships cannot be assigned directly at
+        insert. Maybe this will be implemented later.
+
         TODO: maybe it will need to have some consistency level adjusted to
         avoid possible race conditions.
 
         """
         col_fam = ColumnFamily(self.pool, self.__column_family__)
+        reg = self.registry[self.__column_family__]
+        # verify inputs and resolve aliases
+        for k, v in dict(columns).items():
+            if k not in reg:
+                raise ModelException('%s: no column "%s" found' %
+                                     (self.__column_family__, k))
+            if hasattr(reg[k], 'alias') and reg[k].alias:
+                columns[reg[k].alias] = v
+                del columns[k]
         # handles unique keys
-        unique = [k for k, v in self.registry[self.__column_family__].items()
+        unique = [k for k, v in reg.items()
                   if hasattr(v, 'unique') and v.unique]
         missing = set(unique) - set(columns.keys())
         if missing:
