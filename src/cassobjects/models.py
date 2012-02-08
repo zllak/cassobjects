@@ -361,15 +361,14 @@ _model_constructor.__name__ = '__init__'
 
 def declare_model(cls=object, name='Model', metaclass=MetaModel,
                   keyspace=DEFAULT_KEYSPACE, hosts=DEFAULT_HOSTS,
-                  constructor=_model_constructor):
+                  constructor=_model_constructor, reg=CFRegistry()):
     """Constructs a base class for models.
     All models inheriting from this base will share the same CFRegistry object.
 
     """
-    local_reg = CFRegistry()
     POOLS.setdefault(keyspace, ConnectionPool(keyspace, hosts))
     return metaclass(name, (cls,), {'pool': POOLS[keyspace],
-                                    'registry': local_reg,
+                                    'registry': reg,
                                     '__init__': constructor})
 
 # Relationships between models
