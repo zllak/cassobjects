@@ -395,7 +395,7 @@ class ModelRelationship(object):
         registry = local_class.registry
         if self.target not in registry:
             raise ModelException('Model with column family name "%s" not found '
-                                 'not found in registry' % self.target)
+                                 'in registry' % self.target)
         target_model = registry.get_class(self.target)
         # find foreign key
         local_cf = local_class.__column_family__
