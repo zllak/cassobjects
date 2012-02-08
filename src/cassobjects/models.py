@@ -23,11 +23,13 @@ import inspect
 from functools import partial
 from datetime import datetime
 
-from pycassa import ConnectionPool, ConsistencyLevel
+from pycassa import ConnectionPool, ConsistencyLevel, NotFoundException
 from pycassa.types import CassandraType
 from pycassa.columnfamily import ColumnFamily
 from pycassa.index import create_index_expression, create_index_clause
 from pycassa.util import convert_time_to_uuid
+
+import simplejson as json
 
 from cassobjects.utils import immutabledict
 
@@ -291,10 +293,48 @@ class MetaTimestampedModel(type):
 
     """
     def __init__(cls, name, bases, dct):
+        if 'registry' in cls.__dict__:
+            return type.__init__(cls, name, bases, dct)
+        # Column family name
+        if '__column_family__' not in dct:
+            cls.__column_family__ = cls.__name__.lower()
+
+        # add the model in the CFRegistry object
+        cls.registry.add(cls, {})
+
         return type.__init__(cls, name, bases, dct)
 
-    def get_one_by_rowkey(self, rowkey):
-        pass
+    def get_one_by_rowkey(self, rowkey, **kwargs):
+        """Get the object by the rowkey. Supports pycassa method `get` kwargs."""
+        col_fam = ColumnFamily(self.pool, self.__column_family__)
+        res = col_fam.get(rowkey, **kwargs)
+        if len(res) > 1 or len(res) == 0:
+            raise ModelException("get_one_by_rowkey() returned more than one "
+                                 "element or zero")
+        return self(rowkey, res[rowkey])
+
+    def insert(self, obj, *args, **kwargs):
+        """Insert a new object into the Column family.
+
+        This method is responsible for serializing the object.
+        If `args` exists, all objects in `args` will be associated with the
+        newly created object.
+
+        """
+        col_fam = ColumnFamily(self.pool, self.__column_family__)
+        key = convert_time_to_uuid(datetime.utcnow())
+        serialized = json.dumps(obj)
+        ret = col_fam.insert(key, {key: serialized}, **kwargs)
+        versions = ((key, obj),)
+        for remote in args:
+            assert(hasattr(remote, '__column_family__'))
+            # as we are the timestamped object, we are the "target" in the many
+            # to many table.
+            cf = "%s_%s" % (remote.__column_family__, self.__column_family__)
+            col_fam_mtm = ColumnFamily(self.pool, cf)
+            col_fam_mtm.insert(remote.rowkey,
+                               {convert_time_to_uuid(datetime.utcnow()): key})
+        return self(key, versions)
 
 #################################
 # Column Family Registry object #
@@ -359,8 +399,22 @@ def _model_constructor(self, rowkey, **kwargs):
             setattr(self, arg, kwargs[arg])
 _model_constructor.__name__ = '__init__'
 
+
+def _timestamped_constructor(self, rowkey, versions):
+    """Constructor for instanciated MetaTimestamped models objects.
+    The `version` parameter just represents differents versions of the objects.
+    `version` parameter is a list of 2-tuples.
+
+    """
+    kls = self.__class__
+    self.rowkey = rowkey
+    self.versions = versions
+_timestamped_constructor.__name__ = '__init__'
+
+
 CONSTRUCTORS = {
     MetaModel: _model_constructor,
+    MetaTimestampedModel: _timestamped_constructor,
 }
 
 def declare_model(cls=object, name='Model', metaclass=MetaModel,
@@ -400,15 +454,37 @@ class ModelRelationship(object):
             raise ModelException('Model with column family name "%s" not found '
                                  'in registry' % self.target)
         target_model = registry.get_class(self.target)
-        # find foreign key
-        local_cf = local_class.__column_family__
-        for col, value in registry[self.target].items():
-            if value.foreign_key == local_cf:
-                name = value.alias or col
-                self.target_method = partial(getattr(target_model, 'get_by'), name)
-        if self.target_method is None:
-            raise ModelException('No foreign key found in "%s" for relationship '
-                                 '"%s"' % (self.target, local_cf))
+        if isinstance(target_model, MetaTimestampedModel):
+            # MetaTimestampedModel relationships works with an intermediate
+            # table that mimic many to many relationships.
+            def _lookup_many_to_many(local_model, target_model, local_rowkey):
+                """This method will retrieve `target_model` instances
+                associated with `local_rowkey` by looking up the relations in
+                the intermediate table.
+
+                """
+                cf = "%s_%s" % (local_model.__column_family__,
+                                target_model.__column_family__)
+                col_fam = ColumnFamily(local_model.pool, cf)
+                try:
+                    rows = col_fam.get(local_rowkey)
+                except NotFoundException:
+                    return []
+                ret = []
+                for _, v in rows.items():
+                    ret.append(target_model.get_one_by_rowkey(v))
+                return ret
+            self.target_method = partial(_lookup_many_to_many, local_class, target_model)
+        else:
+            # find foreign key
+            local_cf = local_class.__column_family__
+            for col, value in registry[self.target].items():
+                if value.foreign_key == local_cf:
+                    name = value.alias or col
+                    self.target_method = partial(getattr(target_model, 'get_by'), name)
+            if self.target_method is None:
+                raise ModelException('No foreign key found in "%s" for relationship '
+                                     '"%s"' % (self.target, local_cf))
         self._initialized = True
 
     def get(self, instance):
