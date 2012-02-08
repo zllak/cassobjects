@@ -359,9 +359,13 @@ def _model_constructor(self, rowkey, **kwargs):
             setattr(self, arg, kwargs[arg])
 _model_constructor.__name__ = '__init__'
 
+CONSTRUCTORS = {
+    MetaModel: _model_constructor,
+}
+
 def declare_model(cls=object, name='Model', metaclass=MetaModel,
                   keyspace=DEFAULT_KEYSPACE, hosts=DEFAULT_HOSTS,
-                  constructor=_model_constructor, reg=CFRegistry()):
+                  reg=CFRegistry()):
     """Constructs a base class for models.
     All models inheriting from this base will share the same CFRegistry object.
 
@@ -369,7 +373,7 @@ def declare_model(cls=object, name='Model', metaclass=MetaModel,
     POOLS.setdefault(keyspace, ConnectionPool(keyspace, hosts))
     return metaclass(name, (cls,), {'pool': POOLS[keyspace],
                                     'registry': reg,
-                                    '__init__': constructor})
+                                    '__init__': CONSTRUCTORS[metaclass]})
 
 # Relationships between models
 
