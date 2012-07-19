@@ -12,10 +12,10 @@ setup(
     version=__version__,
     description=open('README.rst', 'r').read(),
     author='Thomas Meson',
-    author_email='thomas@veez.io',
+    author_email='zllak@hycik.org',
     maintainer='Thomas Meson',
-    maintainer_email='thomas@veez.io',
-    url='https://github.com/veezio/cassobjects',
+    maintainer_email='zllak@hycik.org',
+    url='https://github.com/zllak/cassobjects',
     packages=find_packages('src'),
     package_dir={'': 'src'},
     requires=[

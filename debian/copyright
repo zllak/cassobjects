@@ -1,14 +1,14 @@
 This work was packaged for Debian by:
 
-    Thomas Meson <thomas@veez.io> on Tue, 17 Jan 2012 15:57:10 +0100
+    Thomas Meson <zllak@hycik.org> on Tue, 17 Jan 2012 15:57:10 +0100
 
 It was downloaded from:
 
-    http://github.com/veezio/cassobjects
+    http://github.com/zllak/cassobjects
 
 Upstream Author(s):
 
-    Thomas Meson <thomas@veez.io>
+    Thomas Meson <zllak@hycik.org>
 
 Copyright:
 
@@ -16,4 +16,4 @@ Copyright:
 
 The Debian packaging is:
 
-    Copyright (C) 2012 Thomas Meson <thomas@veez.io>
+    Copyright (C) 2012 Thomas Meson <zllak@hycik.org>
